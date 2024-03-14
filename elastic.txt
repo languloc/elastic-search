@@ -1,0 +1,96 @@
+cargar datos:
+es.indices.delete(index="companydatabase", ignore=[400, 404])
+!curl -H "Content-Type: application/json" -XPOST "http://elasticsearch:9200/companydatabase/_bulk?pretty" --data-binary "@Employees50K.json" >> /dev/null
+
+Recupera las mujeres mayores de 40 años.
+from IPython.display import JSON
+
+request_body = {
+  "query": {
+    "bool": {
+      "must": [
+        { "match": { "Gender": "Female" } },
+        { "range": { "Age": { "gt": 40 } } }
+      ]
+    }
+  }
+}
+
+JSON(es.search(index="companydatabase", body=request_body))
+
+Recuper los hombres que su nombre empieza por "Will".
+request_body = {
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "prefix": {"FirstName.keyword": "Will"}  
+        }
+      ],
+      "filter": [
+        {
+          "term": {"Gender.keyword": "Male"}  
+        }
+      ]
+    }
+  }
+}
+
+JSON(es.search(index="companydatabase", body=request_body))
+
+Calcula brecha salarial entre hombres y mujeres.
+mapping = {
+    "mappings": {
+        "properties": {
+            "Salary": {"type": "integer"},  
+            "Gender": {"type": "keyword"},
+        }
+    }
+}
+
+index_name = "companydatabase"
+if es.indices.exists(index=index_name):
+    es.indices.delete(index=index_name) 
+es.indices.create(index=index_name, body=mapping)
+
+request_body = {
+  "size": 0,
+  "aggs": {
+    "average_salary_by_gender": {
+      "terms": {
+        "field": "Gender.keyword"
+      },
+      "aggs": {
+        "average_salary": {
+          "avg": {
+            "field": "Salary"
+          }
+        }
+      }
+    }
+  }
+}
+
+JSON(es.search(index="companydatabase", body=request_body))
+
+Calcula cuales son los intereses más comunes de los empleados.
+request_body = {
+  "size": 0,  
+  "aggs": {
+    "common_interests": {
+      "nested": {  
+        "path": "Interests"
+      },
+      "aggs": {
+        "top_interests": {
+          "terms": {
+            "field": "Interests.keyword",  
+            "size": 10  
+          }
+        }
+      }
+    }
+  }
+}
+
+JSON(es.search(index="companydatabase", body=request_body))
